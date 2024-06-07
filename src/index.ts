@@ -2,7 +2,7 @@ import { Context, Session, Schema, h } from "koishi";
 import {} from "koishi-plugin-puppeteer";
 import { RuDian } from "koishi-plugin-mememaker";
 export const inject = {
-  required: ["puppeteer"],
+  required: ["puppeteer", "canvas"],
 };
 
 export const name = "fei-fake-qqscreenshot";
@@ -15,7 +15,7 @@ export const usage = `
 把消息按照qq截图的样子发送出去~<br>
 和“mememaker插件”有联动~<br>
 一起安装可以获得截图入典功能
-`
+`;
 
 export function apply(ctx: Context) {
   const screenshotMessageHtmlTemp: {
@@ -149,8 +149,6 @@ export function apply(ctx: Context) {
         ? "私聊"
         : (await session.bot.getChannel(session.channelId)).name
     );
-
-    console.log(html);
 
     const img = await ctx.puppeteer.render(html, async (page, next) => {
       const canvas = await page.$("#canvas");
