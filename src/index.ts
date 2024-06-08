@@ -37,7 +37,7 @@ export function apply(ctx: Context) {
     return screenshot;
   });
 
-  const ruDian = new RuDian(ctx);
+  const ruDian = new RuDian(ctx, 12, 24);
   if (ruDian?.RDOne) {
     ctx
       .command("截图入典 [颁奖词] [翻译]")
@@ -61,8 +61,8 @@ export function apply(ctx: Context) {
           await elementTrans(session, message || session.quote.content)
         )?.replace(/<img.*?\/>/g, "[图片]");
         if (
-          h.select(trans, "img").length === 1 &&
-          h.select(trans, ":not(img)").length === 0 ||
+          (h.select(trans, "img").length === 1 &&
+            h.select(trans, ":not(img)").length === 0) ||
           !trans
         )
           trans = await ruDian.translate(message, "ja");
