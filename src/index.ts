@@ -2,7 +2,7 @@ import { Context, Session, Schema, h } from "koishi";
 import {} from "koishi-plugin-puppeteer";
 import { RuDian } from "koishi-plugin-mememaker";
 export const inject = {
-  required: ["puppeteer", "canvas"],
+  required: ["database", "puppeteer", "canvas"],
 };
 
 export const name = "fei-fake-qqscreenshot";
@@ -62,7 +62,8 @@ export function apply(ctx: Context) {
         )?.replace(/<img.*?\/>/g, "[图片]");
         if (
           h.select(trans, "img").length === 1 &&
-          h.select(trans, ":not(img)").length === 0
+          h.select(trans, ":not(img)").length === 0 ||
+          !trans
         )
           trans = await ruDian.translate(message, "ja");
         else
