@@ -64,7 +64,7 @@ export function apply(ctx: Context) {
           h.select(trans, "img").length === 1 &&
           h.select(trans, ":not(img)").length === 0
         )
-          trans = await ruDian.translate(message,"ja");
+          trans = await ruDian.translate(message, "ja");
         else
           trans = (await elementTrans(session, trans)).replace(
             /<img.*?\/>/g,
@@ -110,45 +110,64 @@ export function apply(ctx: Context) {
     );
   });
 
-  ctx
-    .command("截图自定义 <message:text>")
-    .action(async ({ session }, message) => {
-      if (session.event.channel.type) return "私聊无法使用";
-      const getGuildMemberList = await session.bot.getGuildMemberList(
-        session.guildId
-      );
-      const [guildName, ...messageArr] = message
-        .replace(/<at/g, "\n<at")
-        .split("\n");
-      const messageHtmls = messageArr.reduce((pre, cur) => {
-        if (!cur) return pre;
-        if (!h.select(cur, "at")[0].attrs)
-          throw new Error("请at一个存在于本群组的用户");
-        const member = getGuildMemberList.data.find(
-          (member) => member.user.id === h.select(cur, "at")[0].attrs.id
-        );
-        return (
-          pre +
-          messageHtmlMaker(
-            member.user.avatar,
-            member.nick || member.user.name,
-            cur.replace(/<at.*?\/>/g, ""),
-            null
-          )
-        );
-      }, "");
+  /**
+   *
+   * 此指令已经完成，但感觉可能会被滥用所以没有进行开放
+   * 如果想要开启可以去掉 if (false)
+   */
 
-      const timeString = timeStamp2timeString(Date.now());
-      const fakeTimeHtml = `<div class="fake-time">${timeString}</div>`;
-      const html = screenshotHtmlMaker(fakeTimeHtml + messageHtmls, guildName);
+  if (false)
+    ctx
+      .command("截图自定义 <message:text>")
+      .usage(
+        `自定义截图，格式为` +
+          `截图自定义` +
+          `<群组名> ` +
+          `<@用户> <消息内容>` +
+          `<@用户> <消息内容> ` +
+          `<@用户> <消息内容>` +
+          `...`
+      )
+      .action(async ({ session }, message) => {
+        if (session.event.channel.type) return "私聊无法使用";
+        const getGuildMemberList = await session.bot.getGuildMemberList(
+          session.guildId
+        );
+        const [guildName, ...messageArr] = message
+          .replace(/<at/g, "\n<at")
+          .split("\n");
+        const messageHtmls = messageArr.reduce((pre, cur) => {
+          if (!cur) return pre;
+          if (!h.select(cur, "at")[0].attrs)
+            throw new Error("请at一个存在于本群组的用户");
+          const member = getGuildMemberList.data.find(
+            (member) => member.user.id === h.select(cur, "at")[0].attrs.id
+          );
+          return (
+            pre +
+            messageHtmlMaker(
+              member.user.avatar,
+              member.nick || member.user.name,
+              cur.replace(/<at.*?\/>/g, ""),
+              null
+            )
+          );
+        }, "");
 
-      const img = await ctx.puppeteer.render(html, async (page, next) => {
-        const canvas = await page.$("#canvas");
-        return await next(canvas);
+        const timeString = timeStamp2timeString(Date.now());
+        const fakeTimeHtml = `<div class="fake-time">${timeString}</div>`;
+        const html = screenshotHtmlMaker(
+          fakeTimeHtml + messageHtmls,
+          guildName
+        );
+
+        const img = await ctx.puppeteer.render(html, async (page, next) => {
+          const canvas = await page.$("#canvas");
+          return await next(canvas);
+        });
+
+        return img;
       });
-
-      return img;
-    });
 
   async function elementTrans(session: Session, message: string) {
     if (h.select(message, "at").length === 0) return message;

@@ -16,6 +16,6 @@
   ],
   "peerDependencies": {
     "koishi": "^4.17.8",
-    "koishi-plugin-mememaker": "^1.0.12"
+    "koishi-plugin-mememaker": "^1.0.13"
   }
 }
