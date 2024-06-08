@@ -41,7 +41,7 @@ export function apply(ctx: Context) {
   if (ruDian?.RDOne) {
     ctx
       .command("截图入典 [颁奖词] [翻译]")
-      .action(async ({ session }, message, trans) => {
+      .action(async ({ session }, message, trans = "") => {
         const ciduid = session.cid + session.uid;
         if (screenshotMessageHtmlTemp[ciduid]) {
           if (!trans) return "多条消息截图入典请输入参数";
@@ -54,12 +54,24 @@ export function apply(ctx: Context) {
         )
           .replace('<img src="', "")
           .replace('"/>', "");
+
         delete screenshotMessageHtmlTemp[ciduid];
-        message = await at2string(session, message || session.quote.content);
 
-        trans = await at2string(session, trans);
+        message = (
+          await elementTrans(session, message || session.quote.content)
+        )?.replace(/<img.*?\/>/g, "[图片]");
+        if (
+          h.select(trans, "img").length === 1 &&
+          h.select(trans, ":not(img)").length === 0
+        )
+          trans = await ruDian.translate(message,"ja");
+        else
+          trans = (await elementTrans(session, trans)).replace(
+            /<img.*?\/>/g,
+            "[图片]"
+          );
 
-        return ruDian.RDOne(base64String, message, trans || "");
+        return ruDian.RDOne(base64String, message, trans);
       });
   }
 
@@ -74,7 +86,8 @@ export function apply(ctx: Context) {
     }
     screenshotMessageHtmlTemp[ciduid].count++;
     const timeDiff =
-      session.quote.timestamp - screenshotMessageHtmlTemp[ciduid]?.nearTimeStamp;
+      session.quote.timestamp -
+      screenshotMessageHtmlTemp[ciduid]?.nearTimeStamp;
     const timeString =
       timeDiff < 60000 && timeDiff > 0
         ? null
@@ -82,12 +95,12 @@ export function apply(ctx: Context) {
     screenshotMessageHtmlTemp[ciduid].messageHtml += messageHtmlMaker(
       session.quote.user.avatar,
       session.quote.member?.nick || session.quote.user.name,
-      await at2string(session, session.quote.content),
+      await elementTrans(session, session.quote.content),
       timeString,
       (session.quote?.quote?.member?.nick || session.quote?.user?.name) +
         " " +
         timeStamp2timeString(session.quote?.quote?.timestamp),
-      await at2string(session, session.quote?.quote?.content)
+      await elementTrans(session, session.quote?.quote?.content)
     );
     screenshotMessageHtmlTemp[ciduid].nearTimeStamp = session.quote.timestamp;
     return (
@@ -97,42 +110,47 @@ export function apply(ctx: Context) {
     );
   });
 
-  ctx.command("截图自定义 <message:text>").action(async ({ session }, message) => {
-    if(session.event.channel.type) return '私聊无法使用'
-    const getGuildMemberList = await session.bot.getGuildMemberList(
-      session.guildId
-    );
-    const [guildName, ...messageArr] = message.replace(/<at/g,"\n<at").split('\n')
-    const messageHtmls = messageArr.reduce((pre, cur)=>{
-      if(!cur) return pre;
-      if(!h.select(cur, "at")[0].attrs)throw new Error('请at一个存在于本群组的用户')
-      const member = getGuildMemberList.data.find(
-        (member) => member.user.id === h.select(cur, "at")[0].attrs.id
-      )
-      return pre + messageHtmlMaker(
-        member.user.avatar,
-        member.nick || member.user.name,
-        cur.replace(/<at.*?\/>/g, ""),
-        null,
-      )
-    },'')
+  ctx
+    .command("截图自定义 <message:text>")
+    .action(async ({ session }, message) => {
+      if (session.event.channel.type) return "私聊无法使用";
+      const getGuildMemberList = await session.bot.getGuildMemberList(
+        session.guildId
+      );
+      const [guildName, ...messageArr] = message
+        .replace(/<at/g, "\n<at")
+        .split("\n");
+      const messageHtmls = messageArr.reduce((pre, cur) => {
+        if (!cur) return pre;
+        if (!h.select(cur, "at")[0].attrs)
+          throw new Error("请at一个存在于本群组的用户");
+        const member = getGuildMemberList.data.find(
+          (member) => member.user.id === h.select(cur, "at")[0].attrs.id
+        );
+        return (
+          pre +
+          messageHtmlMaker(
+            member.user.avatar,
+            member.nick || member.user.name,
+            cur.replace(/<at.*?\/>/g, ""),
+            null
+          )
+        );
+      }, "");
 
-    const timeString = timeStamp2timeString(Date.now())
-    const fakeTimeHtml = `<div class="fake-time">${timeString}</div>`
-    const html = screenshotHtmlMaker(
-      fakeTimeHtml + messageHtmls,
-      guildName
-    );
+      const timeString = timeStamp2timeString(Date.now());
+      const fakeTimeHtml = `<div class="fake-time">${timeString}</div>`;
+      const html = screenshotHtmlMaker(fakeTimeHtml + messageHtmls, guildName);
 
-    const img = await ctx.puppeteer.render(html, async (page, next) => {
-      const canvas = await page.$("#canvas");
-      return await next(canvas);
+      const img = await ctx.puppeteer.render(html, async (page, next) => {
+        const canvas = await page.$("#canvas");
+        return await next(canvas);
+      });
+
+      return img;
     });
 
-    return img;
-  })
-
-  async function at2string(session: Session, message: string) {
+  async function elementTrans(session: Session, message: string) {
     if (h.select(message, "at").length === 0) return message;
 
     if (session.event.channel.type) return message;
@@ -140,7 +158,7 @@ export function apply(ctx: Context) {
     const getGuildMemberList = await session.bot.getGuildMemberList(
       session.guildId
     );
-    return h.transform(message, {
+    message = h.transform(message, {
       at(attrs) {
         if (attrs.name) return "@" + attrs.name + "";
         const member = getGuildMemberList.data.find(
@@ -149,6 +167,8 @@ export function apply(ctx: Context) {
         return "@" + (member?.nick || member?.user?.name || attrs.id) + " ";
       },
     });
+
+    return message;
   }
 
   async function screenshotMaker(session: Session, messageHtmls: string = "") {
@@ -158,7 +178,7 @@ export function apply(ctx: Context) {
         (session.quote?.quote?.member?.nick || session.quote?.user?.name) +
         " " +
         timeStamp2timeString(session.quote?.quote?.timestamp);
-      const quoteMessage = await at2string(
+      const quoteMessage = await elementTrans(
         session,
         session.quote?.quote?.content
       );
@@ -172,7 +192,7 @@ export function apply(ctx: Context) {
       messageHtml = messageHtmlMaker(
         session.quote.user.avatar,
         session.quote.member?.nick || session.quote.user.name,
-        await at2string(session, session.quote.content),
+        await elementTrans(session, session.quote.content),
         timeString,
         quoteNameTime,
         quoteMessage
