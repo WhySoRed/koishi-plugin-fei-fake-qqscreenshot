@@ -12,8 +12,8 @@ export interface Config {}
 export const Config: Schema<Config> = Schema.object({});
 
 export const usage = `
-把消息按照qq截图的样子发送出去~<br>
-和“mememaker插件”有联动~<br>
+把消息按照qq截图的样子发送出去 ～<br>
+和“mememaker插件”有联动 ～<br>
 一起安装可以获得截图入典功能
 `;
 
@@ -74,7 +74,7 @@ export function apply(ctx: Context) {
     }
     screenshotMessageHtmlTemp[ciduid].count++;
     const timeDiff =
-      session.quote.timestamp - screenshotMessageHtmlTemp[ciduid].nearTimeStamp;
+      session.quote.timestamp - screenshotMessageHtmlTemp[ciduid]?.nearTimeStamp;
     const timeString =
       timeDiff < 60000 && timeDiff > 0
         ? null
@@ -97,6 +97,41 @@ export function apply(ctx: Context) {
     );
   });
 
+  ctx.command("截图自定义 <message:text>").action(async ({ session }, message) => {
+    if(session.event.channel.type) return '私聊无法使用'
+    const getGuildMemberList = await session.bot.getGuildMemberList(
+      session.guildId
+    );
+    const [guildName, ...messageArr] = message.replace(/<at/g,"\n<at").split('\n')
+    const messageHtmls = messageArr.reduce((pre, cur)=>{
+      if(!cur) return pre;
+      if(!h.select(cur, "at")[0].attrs)throw new Error('请at一个存在于本群组的用户')
+      const member = getGuildMemberList.data.find(
+        (member) => member.user.id === h.select(cur, "at")[0].attrs.id
+      )
+      return pre + messageHtmlMaker(
+        member.user.avatar,
+        member.nick || member.user.name,
+        cur.replace(/<at.*?\/>/g, ""),
+        null,
+      )
+    },'')
+
+    const timeString = timeStamp2timeString(Date.now())
+    const fakeTimeHtml = `<div class="fake-time">${timeString}</div>`
+    const html = screenshotHtmlMaker(
+      fakeTimeHtml + messageHtmls,
+      guildName
+    );
+
+    const img = await ctx.puppeteer.render(html, async (page, next) => {
+      const canvas = await page.$("#canvas");
+      return await next(canvas);
+    });
+
+    return img;
+  })
+
   async function at2string(session: Session, message: string) {
     if (h.select(message, "at").length === 0) return message;
 
@@ -116,7 +151,7 @@ export function apply(ctx: Context) {
     });
   }
 
-  async function screenshotMaker(session: Session, messageHtmls?: string) {
+  async function screenshotMaker(session: Session, messageHtmls: string = "") {
     let messageHtml: string = "";
     if (session.quote) {
       const quoteNameTime =
@@ -130,7 +165,7 @@ export function apply(ctx: Context) {
 
       const timeString =
         session.quote.timestamp -
-          screenshotMessageHtmlTemp[session.cid + session.uid].nearTimeStamp <
+          screenshotMessageHtmlTemp[session.cid + session.uid]?.nearTimeStamp <
         60000
           ? null
           : timeStamp2timeString(session.quote.timestamp);
@@ -143,6 +178,7 @@ export function apply(ctx: Context) {
         quoteMessage
       );
     }
+
     const html = screenshotHtmlMaker(
       messageHtmls + messageHtml,
       session.event.channel.type
